@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Redirect, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   confirmDispatcherOrder,
@@ -180,6 +180,15 @@ export default function DispatcherOrderDetailsScreen() {
                   value={`${order.amount.toLocaleString('ru-RU')} ₽`}
                 />
               ) : null}
+              {order.rejection ? (
+                <>
+                  <InfoRow label="Причина отказа" value={order.rejection.reason} />
+                  <InfoRow
+                    label="Дата отказа"
+                    value={new Date(order.rejection.rejectedAt).toLocaleString('ru-RU')}
+                  />
+                </>
+              ) : null}
             </View>
 
             <View style={styles.card}>
@@ -231,8 +240,8 @@ export default function DispatcherOrderDetailsScreen() {
             visible={activeModal === 'reject'}
             orderLabel={orderLabel}
             onClose={() => setActiveModal(null)}
-            onSubmit={async (reason) => {
-              await refreshAfterAction(() => rejectDispatcherOrder(order.id, { reason }));
+            onSubmit={async (reasonId) => {
+              await refreshAfterAction(() => rejectDispatcherOrder(order.id, { reasonId }));
             }}
           />
           <DispatcherRescheduleModal

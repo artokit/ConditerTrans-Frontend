@@ -46,6 +46,11 @@ export interface DispatcherOrderListItem {
 
 export interface DispatcherOrderDetail extends DispatcherOrderListItem {
   productionAddress?: string | null;
+  rejection?: {
+    reasonId?: string | null;
+    reason: string;
+    rejectedAt: string;
+  } | null;
   lines: DispatcherOrderLine[];
   /** Для модалки отгрузки (когда логист уже назначен) */
   handoverVehicle?: string | null;
@@ -53,7 +58,13 @@ export interface DispatcherOrderDetail extends DispatcherOrderListItem {
 }
 
 export interface RejectDispatcherOrderDto {
-  reason: string;
+  reasonId: string;
+}
+
+export interface RejectionReason {
+  id: string;
+  name: string;
+  isDefault: boolean;
 }
 
 export interface RescheduleDispatcherOrderDto {
@@ -89,6 +100,11 @@ export interface ManagerOrderListItem {
 }
 
 export interface ManagerOrderDetail extends ManagerOrderListItem {
+  rejection?: {
+    reasonId?: string | null;
+    reason: string;
+    rejectedAt: string;
+  } | null;
   lines: DispatcherOrderLine[];
 }
 

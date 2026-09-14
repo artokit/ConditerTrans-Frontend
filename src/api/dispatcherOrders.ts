@@ -26,6 +26,11 @@ interface ApiDispatcherOrder {
   amount: number;
   paymentType?: string | null;
   productionAddress?: string | null;
+  rejection?: {
+    reasonId?: string | null;
+    reason: string;
+    rejectedAt: string;
+  } | null;
   lines?: ApiDispatcherOrderLine[];
   handoverVehicle?: string | null;
   handoverDriver?: string | null;
@@ -77,6 +82,7 @@ function mapDetail(order: ApiDispatcherOrder): DispatcherOrderDetail {
   return {
     ...mapListItem(order),
     productionAddress: order.productionAddress,
+    rejection: order.rejection,
     lines: (order.lines ?? []).map(mapLine),
     handoverVehicle: order.handoverVehicle,
     handoverDriver: order.handoverDriver,

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Picker } from '@react-native-picker/picker';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -12,12 +13,14 @@ import {
 import { CloseIcon } from '../Icons/Icons';
 import { Button, FieldLabel, Input } from '../ui/Ui';
 import { colors } from '../../theme/colors';
+import { createRejectionReason, fetchRejectionReasons } from '../../api/rejectionReasons';
+import type { RejectionReason } from '../../types';
 
 interface DispatcherRejectModalProps {
   visible: boolean;
   orderLabel: string;
   onClose: () => void;
-  onSubmit: (reason: string) => Promise<void>;
+  onSubmit: (reasonId: string) => Promise<void>;
 }
 
 export function DispatcherRejectModal({
@@ -26,21 +29,50 @@ export function DispatcherRejectModal({
   onClose,
   onSubmit,
 }: DispatcherRejectModalProps) {
-  const [reason, setReason] = useState('');
+  const [reasons, setReasons] = useState<RejectionReason[]>([]);
+  const [selectedReasonId, setSelectedReasonId] = useState('');
+  const [loadingReasons, setLoadingReasons] = useState(false);
+  const [showCustomReason, setShowCustomReason] = useState(false);
+  const [customReason, setCustomReason] = useState('');
+  const [creatingReason, setCreatingReason] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!visible) return;
+
+    let cancelled = false;
+    setLoadingReasons(true);
+    setError('');
+
+    fetchRejectionReasons()
+      .then((items) => {
+        if (!cancelled) setReasons(items);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Не удалось загрузить причины отказа');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingReasons(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visible]);
+
   const handleSubmit = async () => {
-    const trimmed = reason.trim();
-    if (!trimmed) {
-      setError('Укажите причину отказа');
+    if (!selectedReasonId) {
+      setError('Выберите причину отказа');
       return;
     }
     setError('');
     setSubmitting(true);
     try {
-      await onSubmit(trimmed);
-      setReason('');
+      await onSubmit(selectedReasonId);
+      resetForm();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Не удалось отклонить заказ');
@@ -49,10 +81,38 @@ export function DispatcherRejectModal({
     }
   };
 
-  const handleClose = () => {
-    if (submitting) return;
-    setReason('');
+  const handleCreateReason = async () => {
+    const name = customReason.trim();
+    if (name.length < 3) {
+      setError('Своя причина должна содержать не менее 3 символов');
+      return;
+    }
+
     setError('');
+    setCreatingReason(true);
+    try {
+      const created = await createRejectionReason(name);
+      setReasons((current) => [...current, created]);
+      setSelectedReasonId(created.id);
+      setCustomReason('');
+      setShowCustomReason(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Не удалось сохранить причину');
+    } finally {
+      setCreatingReason(false);
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedReasonId('');
+    setShowCustomReason(false);
+    setCustomReason('');
+    setError('');
+  };
+
+  const handleClose = () => {
+    if (submitting || creatingReason) return;
+    resetForm();
     onClose();
   };
 
@@ -76,14 +136,62 @@ export function DispatcherRejectModal({
               закупкам.
             </Text>
             <FieldLabel>Причина отказа (обязательно):</FieldLabel>
-            <Input
-              value={reason}
-              onChangeText={setReason}
-              placeholder="Например: нехватка сырья на складе"
-              multiline
-              numberOfLines={4}
-              style={styles.textArea}
-            />
+            <View style={styles.pickerWrap}>
+              <Picker
+                selectedValue={selectedReasonId}
+                enabled={!loadingReasons && !submitting}
+                onValueChange={(value) => {
+                  setSelectedReasonId(String(value));
+                  setError('');
+                }}
+              >
+                <Picker.Item
+                  label={loadingReasons ? 'Загрузка причин...' : 'Выберите причину'}
+                  value=""
+                />
+                {reasons.map((item) => (
+                  <Picker.Item
+                    key={item.id}
+                    label={item.isDefault ? item.name : `${item.name} (своя)`}
+                    value={item.id}
+                  />
+                ))}
+              </Picker>
+            </View>
+
+            {!showCustomReason ? (
+              <Pressable style={styles.addReasonButton} onPress={() => setShowCustomReason(true)}>
+                <Text style={styles.addReasonText}>+ Добавить свою причину</Text>
+              </Pressable>
+            ) : (
+              <View style={styles.customReasonBlock}>
+                <FieldLabel>Новая причина:</FieldLabel>
+                <Input
+                  value={customReason}
+                  onChangeText={setCustomReason}
+                  placeholder="Например: оборудование находится на ремонте"
+                  maxLength={250}
+                  editable={!creatingReason}
+                />
+                <View style={styles.customReasonActions}>
+                  <Button
+                    title="Отмена"
+                    variant="secondary"
+                    onPress={() => {
+                      setShowCustomReason(false);
+                      setCustomReason('');
+                      setError('');
+                    }}
+                    disabled={creatingReason}
+                  />
+                  <Button
+                    title={creatingReason ? 'Сохранение...' : 'Добавить'}
+                    onPress={handleCreateReason}
+                    loading={creatingReason}
+                  />
+                </View>
+              </View>
+            )}
             {error ? <Text style={styles.error}>{error}</Text> : null}
           </ScrollView>
           <View style={styles.footer}>
@@ -93,6 +201,7 @@ export function DispatcherRejectModal({
               variant="danger"
               onPress={handleSubmit}
               loading={submitting}
+              disabled={!selectedReasonId || loadingReasons || creatingReason}
             />
           </View>
         </View>
@@ -121,7 +230,17 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', color: colors.text, flex: 1 },
   subtitle: { fontSize: 13, color: colors.textMuted, marginBottom: 16, lineHeight: 20 },
   body: { padding: 16 },
-  textArea: { minHeight: 100, textAlignVertical: 'top' },
+  pickerWrap: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  addReasonButton: { paddingVertical: 14 },
+  addReasonText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+  customReasonBlock: { marginTop: 12, gap: 8 },
+  customReasonActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10 },
   error: { color: colors.error, marginTop: 8, fontSize: 13 },
   footer: {
     flexDirection: 'row',

@@ -22,6 +22,11 @@ interface ApiManagerOrder {
   paymentType?: string | null;
   amount: number;
   reschedule?: ApiRescheduleProposal | null;
+  rejection?: {
+    reasonId?: string | null;
+    reason: string;
+    rejectedAt: string;
+  } | null;
   lines?: ApiManagerOrderLine[];
 }
 
@@ -67,6 +72,7 @@ function mapManagerOrderDetail(item: ApiManagerOrder): ManagerOrderDetail {
   const base = mapManagerOrder(item);
   return {
     ...base,
+    rejection: item.rejection,
     lines: (item.lines ?? []).map((line) => ({
       productName: line.productName,
       quantity: line.quantityOfUnits,
