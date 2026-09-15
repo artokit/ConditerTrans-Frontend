@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import type { RejectionReportRow } from '../../types';
@@ -14,11 +14,37 @@ export function RejectionChart({ rows, selectedDate, onSelect }: { rows: Rejecti
   const [width, setWidth] = useState(MIN_WIDTH);
   const validRows = useMemo(() => rows.filter(row => typeof row.date === 'string' && Number.isFinite(row.rejectionCount)), [rows]);
   const max = Math.max(1, ...validRows.map(row => row.rejectionCount));
-  const points = useMemo(() => {
+  const targetPoints = useMemo(() => {
     const plotWidth = Math.max(1, width - 48);
     const divisor = Math.max(1, validRows.length - 1);
     return validRows.map((row, index) => ({ ...row, date: row.date.slice(0, 10), x: 24 + index * plotWidth / divisor, y: TOP + (1 - row.rejectionCount / max) * (HEIGHT - TOP - BOTTOM) }));
   }, [validRows, max, width]);
+  const [points, setPoints] = useState(targetPoints);
+  const pointsRef = useRef(points);
+
+  useEffect(() => {
+    const previousByDate = new Map(pointsRef.current.map(point => [point.date, point]));
+    const starts = targetPoints.map(target => previousByDate.get(target.date) ?? target);
+    const duration = 450;
+    const startedAt = Date.now();
+    let frame = 0;
+
+    const animate = () => {
+      const progress = Math.min(1, (Date.now() - startedAt) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const next = targetPoints.map((target, index) => ({
+        ...target,
+        x: starts[index].x + (target.x - starts[index].x) * eased,
+        y: starts[index].y + (target.y - starts[index].y) * eased,
+      }));
+      pointsRef.current = next;
+      setPoints(next);
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [targetPoints]);
   const hoveredPoint = points.find(point => point.date === hovered);
   const findNearestPoint = (locationX: number) => points.reduce((nearest, point) =>
     Math.abs(point.x - locationX) < Math.abs(nearest.x - locationX) ? point : nearest,
