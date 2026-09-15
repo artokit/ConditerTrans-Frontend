@@ -7,26 +7,10 @@ import type {
 import { mockRequest } from './client';
 
 const rejectionData: RejectionReportRow[] = [
-  {
-    reason: 'Нехватка производственных мощностей (линия перегружена)',
-    orderCount: 14,
-    sharePercent: 45.2,
-  },
-  {
-    reason: 'Отсутствие необходимого сырья на складе',
-    orderCount: 8,
-    sharePercent: 25.8,
-  },
-  {
-    reason: 'Срыв сроков согласования с заказчиком',
-    orderCount: 5,
-    sharePercent: 16.1,
-  },
-  {
-    reason: 'Техническое обслуживание оборудования',
-    orderCount: 4,
-    sharePercent: 12.9,
-  },
+  { date: '2026-09-12', rejectionCount: 3 },
+  { date: '2026-09-13', rejectionCount: 5 },
+  { date: '2026-09-14', rejectionCount: 2 },
+  { date: '2026-09-15', rejectionCount: 4 },
 ];
 
 const productRatingData: ProductRatingRow[] = [

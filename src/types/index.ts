@@ -245,9 +245,21 @@ export interface ReportDateFilter {
 }
 
 export interface RejectionReportRow {
+  date: string;
+  rejectionCount: number;
+}
+
+export interface RejectionDetailRow {
+  orderId: string;
+  orderNumber: number;
+  rejectedAt: string;
   reason: string;
-  orderCount: number;
-  sharePercent: number;
+}
+
+export interface RejectionDayDetails {
+  date: string;
+  total: number;
+  items: RejectionDetailRow[];
 }
 
 export interface ProductRatingRow {

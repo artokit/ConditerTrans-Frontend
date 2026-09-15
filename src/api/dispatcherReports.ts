@@ -1,4 +1,4 @@
-import type { ProductRatingRow, RejectionReportRow, ReportDateFilter } from '../types';
+import type { ProductRatingRow, RejectionDayDetails, RejectionReportRow, ReportDateFilter } from '../types';
 import { apiRequest, ApiError } from './client';
 import { fetchProductRatingReport, fetchRejectionReport } from './reports';
 
@@ -6,7 +6,7 @@ const REFUSALS_PATH = '/orders/dispatcher/reports/refusals';
 const RATING_PATH = '/orders/dispatcher/reports/product-rating';
 
 interface RefusalsApiResponse {
-  result: RejectionReportRow[];
+  result: unknown[];
 }
 
 interface RatingApiResponse {
@@ -44,10 +44,19 @@ export async function fetchDispatcherRejectionReport(
       const data = await apiRequest<RefusalsApiResponse>(
         `${REFUSALS_PATH}${buildQuery(filter)}`,
       );
-      return data.result ?? [];
+      return (data.result ?? []).flatMap((item): RejectionReportRow[] => {
+        if (!item || typeof item !== 'object') return [];
+        const row = item as Record<string, unknown>;
+        if (typeof row.date !== 'string' || typeof row.rejectionCount !== 'number') return [];
+        return [{ date: row.date, rejectionCount: row.rejectionCount }];
+      });
     },
     () => fetchRejectionReport(filter),
   );
+}
+
+export async function fetchDispatcherRejectionsForDay(date: string): Promise<RejectionDayDetails> {
+  return apiRequest<RejectionDayDetails>(`${REFUSALS_PATH}/${encodeURIComponent(date)}`);
 }
 
 export async function fetchDispatcherProductRatingReport(
