@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
+import { useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -20,6 +21,7 @@ import type {
   ReportDateFilter,
 } from '../src/types';
 import { colors } from '../src/theme/colors';
+import { subscribeToReportChanges } from '../src/services/reportUpdates';
 
 type DispatcherReportTab = 'refusals' | 'rating';
 type DispatcherRange = 'week' | 'month';
@@ -71,6 +73,49 @@ export default function ReportsScreen() {
   const [selectedDate, setSelectedDate] = useState<string>();
   const [dayDetails, setDayDetails] = useState<RejectionDayDetails>();
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const dispatcherRangeRef = useRef(dispatcherRange);
+  const dispatcherTabRef = useRef(dispatcherTab);
+  const selectedDateRef = useRef(selectedDate);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  dispatcherRangeRef.current = dispatcherRange;
+  dispatcherTabRef.current = dispatcherTab;
+  selectedDateRef.current = selectedDate;
+
+  useEffect(() => {
+    if (!isAuthenticated || !isDispatcher) return;
+
+    let cancelled = false;
+    const unsubscribe = subscribeToReportChanges((event) => {
+      if (dispatcherTabRef.current !== 'refusals') return;
+
+      const filter = dispatcherRangeFilter(dispatcherRangeRef.current);
+      if (event && (event.date < filter.dateFrom || event.date > filter.dateTo)) return;
+
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        const openDate = selectedDateRef.current;
+        void Promise.all([
+          fetchDispatcherRejectionReport(filter),
+          openDate && (!event || event.date === openDate)
+            ? fetchDispatcherRejectionsForDay(openDate)
+            : Promise.resolve(undefined),
+        ]).then(([rows, details]) => {
+          if (cancelled) return;
+          setRefusalRows(completeDailyRows(rows, filter));
+          if (details) setDayDetails(details);
+        }).catch((error: unknown) => {
+          if (!cancelled) console.warn('Не удалось обновить статистику отказов', error);
+        });
+      }, 150);
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+    };
+  }, [isAuthenticated, isDispatcher]);
 
   useEffect(() => {
     if (!isAuthenticated || isDispatcher) return;
